@@ -1,0 +1,303 @@
+---
+title: "Assignment 7"
+author: "Martine Lind Jensen"
+date: "31/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+pacman::p_load(pbkrtest)
+```
+
+# Assignment A Tasks:
+
+## 1. Understanding the experiment
+
+### 1.a.
+Comprehension question. Please explain which factor was between-participants and which were within-participants and why.
+
+*Emotion and color = within, Frequency = between* 
+
+### 1.b. 
+What was the age range of the participants?
+
+```{r}
+min(face_exp$age)
+max(face_exp$age)
+```
+*The age range of the participants is 19 to 27 years old* 
+
+## 2. Data exploring and preparation
+
+Find the data on blackboard. Load the data using something like the following code:
+
+```{r}
+face_exp_2016<- read.csv("face_exp_data_all_160310.csv", sep=";")
+face_exp_2017<- read.csv("face_exp_all_logs_2017.csv", sep=";")
+
+#Binding the two datasets together
+
+face_exp<-rbind(face_exp_2016,face_exp_2017)
+#conditions are coded in the "cond_blue", "cond_emo" and "freq" variables
+```
+
+Make sure that factorial variables are coded as factors using the as.factor() function.
+
+```{r}
+#We want factors: cond_emo, cond_blue, gender, response, delay_frames, freq, correct_resp, condition  
+
+face_exp$cond_emo <- as.factor(face_exp$cond_emo)
+face_exp$cond_blue <- as.factor(face_exp$cond_blue)
+face_exp$delay_frames <- as.factor(face_exp$delay_frames)
+face_exp$correct_resp <- as.factor(face_exp$correct_resp)
+```
+
+
+### 2.a: 
+Make a box-plot of the data with RT on the y-axis and emotional condition on the x-axis. Make a box-plot for each of the color conditions by using “fill”. Use facet_wrap() to make two seperate graphs for each frequency group. Give the boxes colors that matches the stimuli, eg. use " + scale_fill_manual(values=c(“yellow”,“blue”,“yellow”,“blue”,“yellow”,“blue”,“yellow”,“blue”))".
+
+```{r}
+ggplot(face_exp, aes(x = cond_emo, y = rt, fill = cond_blue))+
+  geom_boxplot() +
+  facet_wrap(~face_exp$freq) +
+  scale_fill_manual(values=c("yellow","blue","yellow","blue","yellow","blue","yellow","blue"))+
+  ggtitle("2.a")
+```
+
+### 2.b: 
+Comprehension question. Explain why this plot shows that there is something wrong with the data.
+
+*Some are very close to 0*
+
+### 2.c.: 
+Make a subset of the data, including only correct responses.
+
+```{r}
+face_exp_clean <- subset(face_exp, correct_resp == 1)
+```
+
+### 2.d.: 
+Make another boxplot similar to that in 2.a. Did it solve the observed problem?
+
+```{r}
+ggplot(face_exp_clean, aes(x = cond_emo, y = rt, fill = cond_blue))+
+  geom_boxplot() +
+  facet_wrap(~freq) +
+  scale_fill_manual(values=c("yellow","blue","yellow","blue","yellow","blue","yellow","blue"))+
+  ggtitle("2.d")
+```
+
+*It did solve the problem* 
+
+### 2.e.: 
+Use the by() function and stat.desc (in library(pastecs)) to get descriptive measures for the different conditions (e.g. see Field’s book chapter 5.5.3.2.). Try to investigate the three hypotheses based on the descriptive statistics - would you expect any of the statistical analyses to be significant based on the descriptive stats?
+
+```{r}
+library(pacman)
+pacman::p_load(pastecs, nlme)
+
+#H1
+by(data = face_exp_clean$rt, INDICES = face_exp_clean$cond_blue, FUN = stat.desc, basic = FALSE, norm = TRUE)
+
+#H2
+by(data = face_exp_clean$rt, INDICES = face_exp_clean$cond_emo, FUN = stat.desc, basic = FALSE, norm = TRUE)
+
+#H3
+by(data = face_exp_clean$rt, INDICES = list(face_exp_clean$cond_blue, face_exp_clean$freq), FUN = stat.desc, basic = FALSE, norm = TRUE)
+```
+
+*The first hypothesis we would expect to be significant*
+
+*The second hypothesis we would not expect to be significant*
+
+*The third hypothesis we might expect to be significant*
+
+### 2.f.: 
+Explore if the RT data is normally distributed using a qq-plot (e.g. qqnorm()).
+
+```{r}
+qqnorm(face_exp_clean$rt)
+```
+
+*They are not*
+
+### 2.g.: 
+Log-transform the RT data.
+
+```{r}
+face_exp_log <- face_exp_clean
+
+face_exp_log$rt <- log(face_exp_log$rt)
+```
+
+
+### 2.h.: 
+Use a qq-plot to explore if the transformed data appear more normal than the untransformed.
+
+```{r}
+qqnorm(face_exp_log$rt)
+```
+
+
+### 2.i.: 
+Make a plot that explores the response times for participants, individually, using a box-plot. Does anybody stick out as unusual?
+
+```{r}
+ggplot(face_exp_clean, aes(x= ID, y = rt, fill = freq))+
+  geom_boxplot()
+```
+
+*No one is sticking out*
+
+## 3. Data analysis
+
+### 3.a 
+Make mixed effects model where you predict reaction time using the three factors as fixed effects, and include random intercepts for each participant (use “ID” from the log). Include 2-way and 3-way interactions as well. To do this use lme() from the “nlme” package, and use maximum-likelihood as estimation method(method = “ML”).
+
+```{r}
+library(nlme)
+max_model <-lme(rt ~ cond_emo*cond_blue*freq, random=~1|ID, data = face_exp_clean, method = "ML")
+```
+
+
+### 3.b.: 
+Report the t-statistics using summary().
+
+```{r}
+summary(max_model)
+```
+
+
+### 3.c.: 
+Report the F-statistics using anova() and type=‘sequential’, which gives you type=‘I’ analysis.
+
+```{r}
+anova(max_model, type = "sequential")
+```
+
+
+### 3.d.: 
+Report the F-statistics using anova() and type=‘marginal’. Why might there be differences between results from 3.c and 3.d?
+
+```{r}
+anova(max_model, type = "marginal")
+```
+
+
+### 3.e.: 
+Make a new model including a random slope from trial number (‘no’ in the log-file). Repeat 3.b. What does the inclusion of such a random slope model? Did it change the results?
+
+```{r}
+max_model_s <-lme(rt ~ cond_emo*cond_blue*freq, random = ~no|ID, data = face_exp_clean, method = "ML")
+
+summary(max_model_s)
+```
+
+*It does not seem to change results a lot.*
+
+### 3.f.: 
+Make a model comparison of model 3.a and 3.e using anova(). Did the inclusion of a random slope significantly improve the model?
+
+```{r}
+anova(max_model, max_model_s)
+```
+
+*The model including the random slopes, is a better model with lower AIC and BIC and a higher logLikelihood.*
+
+### 3.g.: 
+Response times are correlated in time which goes against the assumption of independence. It might therefore be an idea to model this by including a so-called auto-regressive component in the model (e.g. this is default in SPM analyses of fMRI-data). In lme(), this is done by adding the following to the model specification: “cor=corAR1(,form=~1|ID)”. Make a new model comparison. Does that have an effect?
+
+```{r}
+max_model_sc <-lme(rt ~ cond_emo*cond_blue*freq, random = ~no|ID, data = face_exp_clean, cor=corAR1(form=~1|ID), method = "ML")
+
+anova(max_model_s, max_model_sc)
+```
+
+*Yes the inclusion of the correlation thingy does have an effect on the model. The model is better with the correlation thingy*
+
+## 4. Results and interpretion.
+
+### 4.a.: 
+Comprehension question. If you were to report these results, which model would you use and why?
+Below are some ideas that you may want to consider:
+- Rule number 1: Report the first model you did.
+- Rule number 2: Report the most sensible model.
+- Rule number 3: Report the simplest model.
+- Rule number 4: Report the most extensive and complete model.
+
+*We pick the last = most sensible and rule 4*
+
+### 4.b.: 
+Throughout part 3 of this exercise we made several models to choose from. What is the problem of this strategy? (This is analogous to the motivation for using family-wise-error corrected p-values in the SPM analysis)
+
+*You are fishing for something*
+
+### 4.c.: 
+Write a few lines, briefly stating the results of the experiment in relation to the hypotheses, using the model you dicided upon in 4.a..
+
+The experiment had the following behavioral hypotheses:
+
+H1: The index finger (blue) trials will lead to a shorter response time than middle finger (yellow) trials.
+H2: Fearful faces will yield a shorter response time than neutral.
+H3: Infrequent stimuli will yield longer responses time than frequent. This should surface as an interaction between color and frequency group.
+
+
+*The intercept is a cond_emo0 and cond_blue0 and freqb, meaning that the intercept is seeing a neutral yellow face in frequency blue group*
+
+*H1 is confirmed by cond_blue1(blue face) that is significantly faster than cond_blue0(yellow face)*
+
+*H2 is rejected by cond_emo1(fearfull face) that is not significantly faster than cond_emo0(neutral face)*
+
+*H3 is confirmed by cond_blue1:freqy. There was a significant increase in response time, when reacting to blue faces in the yellow frequency group*
+
+```{r}
+summary(max_model_sc)
+```
+
+
+# B. Tryptophan depletion study analysis
+
+## 5. Interpretation task
+
+### 5.a. 
+Find the data on Blackboard, load it and report figure and analysis using the code below.
+
+### 5.b. 
+Report and discuss the findings. What do they mean? How do they relate to the hypotheses?
+
+```{r}
+#Load data
+trypt_long<-read.csv(file='trypt_long.csv',header=TRUE,sep=",")
+trypt_long$ID<-as.factor(trypt_long$ID)
+trypt_long$time<-as.factor(trypt_long$time)
+#use ggline to make nice line plot. Install ggpubr, if you haven't got it
+library(ggpubr)
+ggline(trypt_long, x = "time", y = "mood",col='Group',
+add = c("mean_se", "dodge"), palette = "jco")
+library(lmerTest)
+#Relevel to make the reference group "loaded"
+trypt_long$Group<-relevel(trypt_long$Group,'loaded')
+#Relevel to make the reference time "7.05"
+trypt_long$time<-relevel(trypt_long$time,'7.05')
+#Make mixed effects model with Group and time as fixed effects and ID as random effect
+trypt_model<-lmerTest::lmer(mood~Group*time+(1|ID), data = trypt_long)
+#Get summary statistics
+trypt_res<-summary(trypt_model)
+#Apply Bonferroni correction for multiple comparisons to p-values (9 tests)
+# and round a bit (5 decimals)
+trypt_res$coefficients2<-matrix(round(c(trypt_res$coefficients,trypt_res$coefficients[,5]*9),
+digits=5),ncol=6)
+#Add names to the new results matrix
+colnames(trypt_res$coefficients2)<-c(colnames(trypt_res$coefficients),'p(bonf)')
+rownames(trypt_res$coefficients2)<-c(rownames(trypt_res$coefficients))
+#Show us what you've got
+trypt_res$coefficients2
+#Use library(emmeans) to get more comprehensible pairwise interactions (uncorrected for multiple comparisons)
+library(emmeans)
+lsm = emmeans(trypt_model, ~Group*time)
+contrast(lsm, interaction = "pairwise")
+```
+
